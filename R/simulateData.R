@@ -1,3 +1,84 @@
+#' @title simulate data for the benchmark of interaction detection methods
+#'
+#' @description
+#' A function to simulate different types of variables as predictors and their
+#' influence on an outcome variable y. Two predictors will interact in their
+#' effect on y, depending on .
+#'
+#' @param nObs an integer, number of individuals
+#' @param nPredictors an integer, number of predictors (i.e., markers/SNPs)
+#' @param predType one of c("haploid", "diploid", "continuous", "mixed"),
+#' indicating the type of predictor variables to simulate.
+#' "haploid": predictors are simulated haploid genotype markers,
+#' either 0 or 1, corresponding to the two possible alleles.
+#' With LD between neighboring markers according to recombprob.
+#' "diploid": predictors are simulated diploid genotype markers. The predictors
+#' take values 0, 1, or two, corresponding to homozygotic for the reference,
+#' heterozygotic, or homozygotic for the alternate allele. The alternate alleles
+#' are sampled according to minMAF. All markers are independent (no LD)
+#' "continuous": predictors are normally distributed random variables with
+#' means \code{means} and standard deviations \code{SDs}.
+#' "mixed": predictors contain both categorical (0/1) and continuous variables,
+#' according to \code{propBinary}. Categorical predictors are sampled
+#' from 0 or 1 according to \code{minMAF}, and continous are created as
+#' described for \code{predType = "continuous"}
+#' @param recombprob numeric vector containing values between 0 and 1,
+#' representing probablities of recombination; at each successive locus,
+#' one of these values is sampled randomly to determine how many of the
+#' individuals will "flip" their genotype; the more '0' values in this vector,
+#' the more LD there will be between the markers. Higher values will result
+#' in more recombination. Defaults to c(0,0,0,0,0.01,0.3). Only used when
+#' \code{predType = "haploid"}, ignored otherwise.
+#' @param minMAF numeric between 0 and 1, which indicates the minimum allowed
+#' minor allele frequency. Defaults to 0.3. Only used for diploid or mixed
+#' predictors, ignored otherwise.
+#' @param means Vector of desired means for the predictor variables. Only used
+#' for continuous or mixed predictors, ignored otherwise.
+#' @param SDs  Vector of desired standard deviations for the predictor
+#' variables. Only used for continuous or mixed predictors, ignored otherwise.
+#' @param propBinary for mixed predictors, a value between 0 and 1, indicating
+#' the proportion of predictors that should be binary as opposed to continuous.
+#' Defaults to 0.5.
+#' @param outcome One of c("binomial", "numeric").
+#' "binomial": Outcome variable will be binary 0/1 labels.
+#' "numeric": Outcome variable will be continuous values with mean=0 and SD=1
+#' @param intType one of c("none", "pure", "modifyer1", "modifyer2","redundant",
+#'  "XOR", "synergistic"), indicating type of interaction to be simulated.
+#'  Two random predictors x1 and x2 are selected and their interaction effect on
+#'  the outcome y modeled according to intType. In case of mixed predictors,
+#'  x1 and x2 are selected so that x1 is a binary, and x2 is a continuous
+#'  predictor. Effect sizes (ß1, ß2, and ßi)are set with \code{betaMarginals}.
+#'  "none": no interaction. The two markers only have marginal effects
+#'  (formula: y=ß1\*x1+ß2\*x2)
+#'  "pure": interaction only. y=ßi\*x1\*x2
+#'  "modifyer1": marginal effect for x1 and interaction (y=ß1\*x1+ßi\*x1\*x2).
+#'  "modifyer2": marginal effect for x2 and interaction (y=ß1\*x2+ßi\*x1\*x2).
+#'  Essentially the same as modifyer1, except for mixed predictors.
+#'  "redundant": the interaction effect negates individual marginal
+#'   effects (y=ß1\*x1+ß2\*x2-ßi\*x1\*x2)
+#'  "XOR": extremer version of "redundant". Marginal effects are completely
+#'  masked by interaction(y=ß1\*x1+ß2\*x2-ßi\*2\*x1\*x2)
+#'  "synergistic": both markers have marginal effects as well as interaction
+#'  (y=ß1\*x1+ß2\*x2+ßi\*x1\*x2)
+#' @param betaInt A numeric vector of length three, indicating marginal and
+#' interaction effect sizes of the interacting predictors, see \code{intType}.
+#' Defaults to c(1,1,1).
+#' @param nMarginals integer, indicating how many predictors should have
+#'  marginal effects (in addition to the two interacting predictors).
+#' @param betaMarginals numeric vector of length \code{nMarginals},
+#'  indicating effect sizes of the marginal effects.
+#' @param noiseSD standard deviation of normally distributed noise (mean 0) that
+#' is added to the continuous predictor.
+#' @return A list with the following components:
+#' x a dataframe containing the predictors
+#' y the outcome variable
+#' intIDS the indexes of the two predictors that interact
+#' marginalIDs the indexes of the predictors with additional marginal effects
+#' intType same as input intType.
+#' predType same as input predType
+#' @export
+#'
+#' @examples
 simData = function(nObs,
                    nPredictors,
                    predType = c("haploid", "diploid", "continuous", "mixed"),
@@ -46,15 +127,8 @@ simData = function(nObs,
 #' A function to simulate (0,1) genotype markers with tunable linkage
 #' disequilibrium
 #'
-#' @param nObs number of individuals
-#' @param nPredictors number of predictors (i.e., markers/SNPs)
-#' @param recombprob probablities of recombination; at each successive locus,
-#' one of these values is sampled randomly to determine how many of the
-#' individuals will "flip" their genotype; the more '0' values in this vector,
-#' the more LD there will be between the markers. Higher values will result
-#' in more recombination.
+#' @inheritParams simData
 #' @return A dataframe with (0/1) genotypes.
-#' @export
 #'
 #' @examples
 simHaploid = function(nObs,nPredictors,
@@ -78,20 +152,15 @@ simHaploid = function(nObs,nPredictors,
 #' A function to simulate (0,1,2) genotype markers for given allele frequencies
 #'
 #'
-#' @param nObs number of individuals
-#' @param nPredictors number of predictors (markers/SNPs)
-#' @param minMAF a vector of length nPredictors with  allele frequencies. If a
-#' single number, it is recycled for all predictors. If not provided (NA),
-#' allele frequencies are uniformly sampled between 0 and 1.
+#' @inheritParams simData
 #' @return A dataframe with (0/1/2) genotypes
-#' @export
 #'
 #' @examples
 simDiploid = function(nObs,nPredictors,minMAF){
   AFs=runif(n = nPredictors, min = minMAF, max = 1-minMAF)
   geno = sapply(AFs, function(x){
     as.integer(sample(c(0,1,2), nObs, replace = TRUE,
-          prob = c((1-x)^2, 2*(1-x)*x, x^2)))
+                      prob = c((1-x)^2, 2*(1-x)*x, x^2)))
   })
   return(data.frame(geno))
 }
@@ -102,15 +171,8 @@ simDiploid = function(nObs,nPredictors,minMAF){
 #' A function to create a dataframe of numeric, normally distributed predictors.
 #'
 #'
-#' @param nObs number of individuals
-#' @param nPredictors number of predictors
-#' @param means a vector of length nPredictors with expected mean for each
-#' predictor. If a single number, it is recycled for all predictors. Defaults to 0.
-#' @param SDs a vector of length nPredictors with expected standard deviation
-#' for each predictor. If a single number, it is recycled for all
-#' predictors. Defaults to 1.
+#' @inheritParams simData
 #' @return A dataframe with numeric predictors
-#' @export
 #'
 #' @examples
 simContinuous = function(nObs, nPredictors, means=0, SDs = 1){
@@ -133,20 +195,9 @@ simContinuous = function(nObs, nPredictors, means=0, SDs = 1){
 #' A function to create a dataframe of numeric, normally distributed predictors.
 #'
 #'
-#' @param nObs number of individuals
-#' @param nBinary number of predictors with 0/1 values.
-#' @param nNumeric number of numeric/continuous predictors.
-#' @param means a vector of length \code{nNumeric} with expected mean for each
-#' predictor. If a single number, it is recycled for all predictors. Defaults to 0.
-#' @param SDs a vector of length \code{nNumeric} with expected standard deviation
-#' for each predictor. If a single number, it is recycled for all
-#' predictors. Defaults to 1.
-#' @param minMAF minimum allowed minor allele frequencies. If a
-#' single number, it is recycled for all binary predictors If not provided (NA),
-#' allele frequencies are uniformly sampled between 0 and 1.
+#' @inheritParams simData
 #' @return A dataframe with \code{nBinary} numeric predictors and
 #' \code{nNumeric} numeric predictors
-#' @export
 #'
 #' @examples
 simMixed = function(nObs, nBinary, nNumeric,  means=0, SDs = 1,
@@ -171,7 +222,21 @@ simMixed = function(nObs, nBinary, nNumeric,  means=0, SDs = 1,
 }
 
 
-
+#' @title create numeric Predictor matrix
+#'
+#' @description
+#' A function to simulate an outcome variable with interactions
+#' and marginal effects.
+#'
+#'
+#' @inheritParams simData
+#' @return a list with the following components:
+#' outcome: outcome variable.
+#' intIDS: indices of predictors with were randomly selected to interact
+#' marginalIDS: indeices of predictors which were randomly selected to
+#' have marginal effects.
+#'
+#' @examples
 simulateY = function(X, outcome = c("binomial", "numeric"),
                      predType = c("haploid", "diploid", "continuous", "mixed"),
                      intType = c("none", "pure", "modifyer1", "modifyer2",
