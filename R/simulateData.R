@@ -81,21 +81,58 @@
 #' @examples
 simData = function(nObs,
                    nPredictors,
-                   predType = c("haploid", "diploid", "continuous", "mixed"),
+                   predType = NA,
                    recombprob=c(0,0,0,0,0.01,0.3), # used for haploid
                    minMAF=0.3, # used for diploid and mixed
                    means=0,
                    SDs = 1, # used for continuous predictors
                    propBinary = 0.5, # used for mixed
-                   outcome = c("binomial", "numeric"),
-                   intType = c("none", "pure", "modifyer1", "modifyer2",
-                               "redundant", "XOR", "synergistic"),
+                   outcome = NA,
+                   intType = NA,
                    betaInt = c(1,1,1),
                    nMarginals,
                    betaMarginals = rep(1,nMarginals),
                    noiseSD = 1){
   # add some argument checks here.
-  stopifnot("nObs must be a positive integer" = is.numeric(nObs) & nObs>0)
+  predType = match.arg(predType, c("haploid", "diploid", "continuous", "mixed"))
+  outcome = match.arg(outcome, c("binomial", "numeric"))
+  intType = match.arg(intType, c("none", "pure", "modifyer1", "modifyer2",
+                                 "redundant", "XOR", "synergistic"))
+  stopifnot("nObs must be a positive integer" =
+              is.numeric(nObs) & nObs>0 & length(nObs) == 1,
+            "nPredictors must be a positive integer" =
+              is.numeric(nPredictors) & nPredictors>0 & length(nPredictors) == 1,
+            "betaInt must be a numeric vector of length 3" =
+              length(betaInt) == 3 & is.numeric(betaInt),
+            "nMarginals must be a non-negative integer" =
+              is.numeric(nMarginals) & nMarginals>=0 & length(nMarginals) == 1,
+            "betaMarginals must be a numeric vector of length 1 or nMarginals" =
+              is.numeric(betaMarginals) &  length(betaMarginals) == nMarginals,
+            "noiseSD must be a numeric" =
+              length(noiseSD) == 1 & is.numeric(noiseSD))
+
+  if(predType == "haploid"){
+    stopifnot("recombprob must be a numberic vector with values between 0 and 1" =
+                is.numeric(recombprob) & all(recombprob <= 1) & all(recombprob >= 0))
+  } else if(predType == "diploid"){
+    stopifnot("minMAF must be a number between 0 and 1" =
+      length(minMAF) == 1 & is.numeric(minMAF) & minMAF <= 1 & minMAF >= 0)
+
+  } else if (predType == "mixed"){
+    stopifnot("minMAF must be a number between 0 and 1" =
+                length(minMAF) == 1 & is.numeric(minMAF) & minMAF <= 1 & minMAF >= 0,
+              "propBinary must be a number between 0 and 1" =
+                length(propBinary) == 1 & is.numeric(propBinary) & propBinary <= 1 & propBinary >= 0,
+              "means must be a numeric of length 1 or the number of numeric predictors" =
+                is.numeric(means) & length(means) %in% c(1,nPredictors*propBinary),
+              "SDs must be a numeric of length 1 or the number of numeric predictors" =
+                is.numeric(SDs) & length(SDs) %in% c(1,nPredictors*propBinary))
+  } else if (predType == "continuous"){
+    stopifnot("means must be a numeric of length 1 or the number of numeric predictors" =
+      is.numeric(means) & length(means) %in% c(1, nPredictors),
+    "SDs must be a numeric of length 1 or the number of numeric predictors" =
+      is.numeric(SDs) & length(SDs) %in% c(1, nPredictors))
+  }
   # simulate predictors
   X = switch(predType,
              "haploid" = simHaploid(nObs,
@@ -175,7 +212,7 @@ simDiploid = function(nObs,nPredictors,minMAF){
 #' @return A dataframe with numeric predictors
 #'
 #' @examples
-simContinuous = function(nObs, nPredictors, means=0, SDs = 1){
+simContinuous = function(nObs, nPredictors, means, SDs){
   if(length(means) == 1){
     means = rep(means,nPredictors)
   }
@@ -200,8 +237,8 @@ simContinuous = function(nObs, nPredictors, means=0, SDs = 1){
 #' \code{nNumeric} numeric predictors
 #'
 #' @examples
-simMixed = function(nObs, nBinary, nNumeric,  means=0, SDs = 1,
-                    minMAF = minMAF){
+simMixed = function(nObs, nBinary, nNumeric,  means, SDs,
+                    minMAF){
   if(length(means) == 1){
     means = rep(means,nNumeric)
   }
@@ -237,13 +274,13 @@ simMixed = function(nObs, nBinary, nNumeric,  means=0, SDs = 1,
 #' have marginal effects.
 #'
 #' @examples
-simulateY = function(X, outcome = c("binomial", "numeric"),
-                     predType = c("haploid", "diploid", "continuous", "mixed"),
-                     intType = c("none", "pure", "modifyer1", "modifyer2",
-                                 "redundant", "XOR", "synergistic"),
-                     betaInt = c(1,1,1),
-                     nMarginals, betaMarginals = rep(1,nMarginals),
-                     noiseSD = 1){
+simulateY = function(X, outcome,
+                     predType,
+                     intType,
+                     betaInt,
+                     nMarginals,
+                     betaMarginals,
+                     noiseSD){
   # select two predictors to interact
   if(predType == "mixed"){ # for X with mixed predictor types, choose one of each
     predClasses = sapply(X,class)
