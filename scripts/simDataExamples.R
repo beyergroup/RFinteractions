@@ -17,7 +17,7 @@ predTypes =  c("haploid", "diploid", "continuous", "mixed")
 
 # haploid predictors, numeric outcome #####
 pdfandpng(path = "fig/simData_haplPred_numOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             par(mfrow = c(4,2), mar = c(3,3,2,0.5), mgp = c(2.1,1,0))
             for(i in names(intTypes)){
@@ -40,7 +40,7 @@ pdfandpng(path = "fig/simData_haplPred_numOutcome",
 
 # diploid predictors, numeric outcome #####
 pdfandpng(path = "fig/simData_diplPred_numOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 12,
           expr = expr({
             par(mfrow = c(4,2), mar = c(3,3,1,0.5))
             for(i in names(intTypes)){
@@ -53,7 +53,7 @@ pdfandpng(path = "fig/simData_diplPred_numOutcome",
                              x1 = D$x[,D$intIDs[1]],
                              x2 = D$x[,D$intIDs[2]])
               boxplot(y ~ x1:x2, data = d,  las = 1, mgp = c(2,0.7,0),
-                      main = intTypes[i], names = NA,
+                      main = intTypes[i], names = NA, ylab = "y",
                       col = c("darkgoldenrod2", "chocolate3", "darkred"))
               abline(v = c(3.5, 6.5))
               mtext(text = c("bb", "bB", "BB"), side = 1, at = c(2,5,8),
@@ -76,7 +76,7 @@ pdfandpng(path = "fig/simData_diplPred_numOutcome",
 
 # numeric predictors, numeric outcome #####
 pdfandpng(path = "fig/simData_numPred_numOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             plotList = lapply(names(intTypes), function(i){
               D = simData(nObs = nObs, nPredictors = nPredictors,
@@ -98,7 +98,7 @@ pdfandpng(path = "fig/simData_numPred_numOutcome",
 
 # mixed predictors, numeric outcome #####
 pdfandpng(path = "fig/simData_mixPred_numOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             par(mfrow = c(4,2), mar = c(3,3,1.5,0.5))
             for(i in names(intTypes)){
@@ -123,7 +123,7 @@ pdfandpng(path = "fig/simData_mixPred_numOutcome",
 
 # haploid predictors, categorial outcome #####
 pdfandpng(path = "fig/simData_haplPred_catOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             plotList = lapply(names(intTypes), function(i){
               D = simData(nObs = nObs, nPredictors = nPredictors,
@@ -147,7 +147,7 @@ pdfandpng(path = "fig/simData_haplPred_catOutcome",
 
 # diploid predictors, categorial outcome #####
 pdfandpng(path = "fig/simData_diplPred_catOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             plotList = lapply(names(intTypes), function(i){
               D = simData(nObs = nObs, nPredictors = nPredictors,
@@ -173,7 +173,7 @@ pdfandpng(path = "fig/simData_diplPred_catOutcome",
 
 # num predictors, categorical outcome ######
 pdfandpng(path = "fig/simData_numPred_catOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             colFunc = rgb(red = c(0,1), green = c(0,0),blue =
                             c(0,0), c(0.3,0.3), maxColorValue = 1)
@@ -187,12 +187,15 @@ pdfandpng(path = "fig/simData_numPred_catOutcome",
               d = data.frame(y = D$y, x1 = D$x[,D$intIDs[1]], x2 = D$x[,D$intIDs[2]])
 
               plot(d$x1, d$x2, col = colFunc[d$y+1], pch = 19, cex = 1,
-                   las = 1, mgp = c(2,0.7,0), main = intTypes[i])
+                   las = 1, mgp = c(2,0.7,0), main = intTypes[i],
+                   xlab = "x1", ylab = "x2")
               mod = glm(y ~ x1*x2, d, family=binomial(link='logit'))
               p = summary(mod)$coefficients [2:4,4]
-              legend("topleft",
+              legend("topleft", bty = "n",
                      legend = paste0(c("p(x1) = ", "p(x2) = ", "p(x1:x2) = "),
                                      format(p, digits = 2)))
+              legend("bottomright", col = c("black", "red"),legend = c(0,1),
+                     pch = 1, title = "y")
             }
           }))
 
@@ -200,7 +203,7 @@ pdfandpng(path = "fig/simData_numPred_catOutcome",
 
 # mixed predictors, categorial outcome #####
 pdfandpng(path = "fig/simData_mixPred_catOutcome",
-          height = 9, width = 6,
+          height = 9, width = 6, pointsize = 15,
           expr = expr({
             par(mfrow = c(4,2), mar = c(3,3,1,0.5))
             for(i in names(intTypes)){
