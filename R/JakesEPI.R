@@ -5,6 +5,17 @@
 ### testset=logical indicating whether the testset (OOB) predictions
 ### or the training predictions should be used
 ######################################################################
+
+#' @title simulate haploid genotypes with tunable LD
+#'
+#' @description
+#' A function to simulate (0,1) genotype markers with tunable linkage
+#' disequilibrium
+#'
+#' @param simData
+#' @return A dataframe with (0/1) genotypes.
+#'
+#' @examples
 EPI = function(x){
   d = abs(x$l-x$r)
   m = (abs(x$l)+abs(x$r))/2
@@ -14,38 +25,45 @@ EPI = function(x){
   out[out<0] = 0
   return(out)
 }
-predsymm = function(rf,testset=TRUE){
+predsymm = function(rf){
+  # create two matrices with dimensions nPredictors*nPredictors
+  # to store slope sums on left and right side, respectively
   l = matrix(0,nrow=nrow(rf$importance), ncol=nrow(rf$importance))
   colnames(l) = rownames(rf$importance)
   rownames(l) = rownames(rf$importance)
   r = l
+  # a matrix to count the number of collected slopes
   ct = l
-  xx = rf$forest$bestvar
-  rr = rf$forest$rightDaughter
-  ll = rf$forest$leftDaughter
-  if(testset){
-    pred = rf$forest$oobpred
-  }else{
-    pred = rf$forest$nodepred
-  }
-  xx[xx==0]=NA
-  rr[rr==0]=NA
-  ll[ll==0]=NA
-  for(i in 1:ncol(xx)){
-    if(all(is.na(xx[,i]))) next
-    p = pred[ll[,i],i] - pred[rr[,i],i]
-    ind = 1:nrow(xx)
-    parents = xx[ifelse(ind%%2==0,match(ind,ll[,i]),match(ind,rr[,i])),i]
-    ind = cbind(1:nrow(xx),parents,xx[,i],p)
-    ind = ind[apply(ind,1,function(x) all(!is.na(x))),]
-    if(is.null(nrow(ind))) next
-    p = ind[,4]
-    side = ind[,1]
-    ind = ind[,2:3]
-    il = side%%2!=0
-    ir = !il
-    l[ind[il,]] = l[ind[il,]] + p[il]
-    r[ind[ir,]] = r[ind[ir,]] + p[ir]
+  # extract infos from RF
+  bvar = rf$forest$bestvar
+  bvar[bvar==0]=NA
+  rD = rf$forest$rightDaughter  # matrix nNodes*ntree
+  rD[rD==0]=NA
+  lD = rf$forest$leftDaughter # matrix nNodes*ntree
+  lD[lD==0]=NA
+  pred = rf$forest$nodepred # matrix nNodes*ntree
+
+  # iterate through trees
+  for(i in 1:ncol(bvar)){
+    if(all(is.na(bvar[,i]))) next # if there are no splits in tree, skip this tree
+    # calculate all slopes for this tree
+    p = pred[lD[,i],i] - pred[rD[,i],i]
+    # get the parent variable of each node
+    ind = 1:nrow(bvar)
+    parents = bvar[ifelse(ind %% 2 == 0, # right children will have even index
+                        match(ind,lD[,i]), #match returns a vector of the positions of (first) matches of its first argument in its second.
+                        match(ind,rD[,i])),i]
+    # create matrix, each row a parent-child combination and the slope
+    mat = cbind(nodeID = 1:nrow(bvar),parents, splitVar = bvar[,i], slope = p)
+    mat = mat[apply(mat,1,function(x) all(!is.na(x))),]
+    if(is.null(nrow(mat))) next
+    p = mat[,4]
+    ind = mat[,2:3]
+    isleft = mat[,1] %% 2 != 0
+    isright = !isleft
+    # fill l and r with the respective slopes
+    l[ind[isleft,]] = l[ind[isleft,]] + p[isleft]
+    r[ind[isright,]] = r[ind[isright,]] + p[isright]
     ct[ind] = ct[ind] + 1
   }
   return(list(l=l/rf$ntree,r=r/rf$ntree,counts=ct/sum(ct)))

@@ -1,11 +1,17 @@
-RFepistasis <- function(mappingData, 
-                        markerInds1 = NULL, markerInds2 = NULL, pairMat = NULL, 
+pairedSF = function(rf, pairMat){
+  pk = require(RandomForestExtended)
+  stopifnot("package RandomForestExtended is not installed but is required." = pk)
+
+}
+
+RFepistasis <- function(mappingData,
+                        markerInds1 = NULL, markerInds2 = NULL, pairMat = NULL,
                         mtry = NULL, ntree = 30000, npermut = 100,
                         nodesize = 5, minTest = 5, nthreads = 1,fullTable = F,
                         Rcutoff = 0.9){
   RFE = require(RandomForestExtended)
   if(!RFE){
-    stop("RFepistasis depends on the package RandomForestExtended. 
+    stop("RFepistasis depends on the package RandomForestExtended.
            It can be accessed at http://cellnet-sb.cecad.uni-koeln.de/resources/RandomForestExtended.")
   }
   missingG = any(is.na(mappingData$genotype))
@@ -21,7 +27,7 @@ RFepistasis <- function(mappingData,
     if(mtry < 0){
       stop("mtry has to be either NULL or a positive integer.")
     }
-  } 
+  }
   if(ntree<1 | !is.numeric(ntree)){
     stop("ntree has to be a positive integer.")
   }
@@ -65,8 +71,8 @@ RFepistasis <- function(mappingData,
     if(!is.integer(pairMat) & !ncol(pairMat) == 2){
       stop("the pairMat matrix has to be an integer matrix with two columns")
     }
-  } 
-  
+  }
+
   # initialize some variables
   genotype = mappingData$genotype
   phenotypes = mappingData$phenotype
@@ -74,14 +80,14 @@ RFepistasis <- function(mappingData,
     phenotypes = matrix(phenotypes, nrow = 1)
   popStr = mappingData$mappingCovariates
   NAlist = mappingData$NAlist
-  
+
   if(is.null(pairMat)){
     if(is.null(markerInds1)){
       markerInds1 = 1:ncol(genotype)
-    } 
+    }
     if(is.null(markerInds2)){
       markerInds2 = 1:ncol(genotype)
-    } 
+    }
     #make a matrix with unique marker combinations
     pairMat <- expand.grid(markerInds1, markerInds2)
     pairMat <- t(apply(pairMat,1,function(x){ c(min(x), max(x)) }))
@@ -93,7 +99,7 @@ RFepistasis <- function(mappingData,
   }
   interestingMarkers <- union(markerInds1,markerInds2)
   interestingMarkers <- sort(interestingMarkers)
-  cors <- cor(genotype[,interestingMarkers], use = "pairwise.complete.obs") 
+  cors <- cor(genotype[,interestingMarkers], use = "pairwise.complete.obs")
   ngenotype <- ncol(genotype)
   if(is.null(mtry)){
     mtry = floor(ncol(genotype)/3)
@@ -111,17 +117,17 @@ RFepistasis <- function(mappingData,
   #    rowHash[pairMat[i,1],pairMat[i,2]] <- i
   #    rowHash[pairMat[i,2],pairMat[i,1]] <- i
   # }
-  
+
   # iterate through the traits and call interactions
   phenoRes = lapply(seq_len(nrow(phenotypes)),function(p){
     phenotype = phenotypes[p,]
     # remove samples with missing phenotypes
     missingP <- !is.na(phenotype)
     phenotype <- phenotype[missingP]
-    
+
     # grow RF
     if(missingG){
-      #impute missing genotypes and grow the forest 
+      #impute missing genotypes and grow the forest
       rf = lapply(1:npermut, FUN = function(x){
         imputed = replaceGenoNAs(genotype, NAlist)
         imputed = imputed[missingP,]
@@ -138,8 +144,8 @@ RFepistasis <- function(mappingData,
                                                nodesize=nodesize,keep.forest=T,
                                                importance=F, nthreads=nthreads)
     }
-    ntree = rf$ntree 
-    
+    ntree = rf$ntree
+
     #organize the forest-matrices into an array
     forestArray <- array(0,dim = c(dim(rf$forest$nodestatus),5))
     forestArray[,,1] <- rf$forest$leftDaughter # rows: node, cols: tree
@@ -148,7 +154,7 @@ RFepistasis <- function(mappingData,
     forestArray[,,4] <- rf$forest$bestvar # index of the alleles that were used for the split at each node (and in each tree)
     forestArray[,,5] <- rf$forest$oobpred
     rm(rf)
-    
+
     #create an object to store the distributions of side specific differences in means
     #maybe use sparse matrix representation here? for example library('Matrix') or library('slam')
     mdim <- length(interestingMarkers)
@@ -157,7 +163,7 @@ RFepistasis <- function(mappingData,
     right <- array(dim=c(mdim,mdim,3))
     right[,,3] <- 0
     counts <- array(0,dim=c(mdim,mdim,2))
-    
+
     # walk through the forest and collect the distribution of side-specific means
     for (i in 1:ntree){
       tree <- forestArray[,i,]
@@ -170,23 +176,23 @@ RFepistasis <- function(mappingData,
       markers <- mHash[markers]
       counts[markers,markers,1] = counts[markers,markers,1] + 1 # increase the counter for the marker pairs that occured together
       counts[-markers,markers,2] = counts[-markers,markers,2] + 1 # increase the counter for the cases where only one of the markers was used (not used in row)
-      
+
       ## left side:
       #build a matrix: col 1&2: nodes, col3&4: respective markers
       pairs <- cbind(tS$nl, matrix(mHash[tree[tS$nl,4]], ncol = 2,byrow = F))
-      pairs = pairs[apply(pairs,1,function(x) !any(is.na(x))),,drop = F] # exclude pairs where one of the markers is not in interestingMarkers  
+      pairs = pairs[apply(pairs,1,function(x) !any(is.na(x))),,drop = F] # exclude pairs where one of the markers is not in interestingMarkers
       # for asymmetry tests
       if(nrow(pairs) > 0){
         for(j in 1:nrow(pairs)){
           stored <- left[pairs[j,3],pairs[j,4],3]
-          childMeans <- tree[tree[pairs[j,2],1:2],5] 
+          childMeans <- tree[tree[pairs[j,2],1:2],5]
           if(any(childMeans==0)){ # if there are no oob samples for this node, the oob prediction is zero. Here these cases are excluded.
             next
           }
           if(stored >= 1){
-            left[pairs[j,3],pairs[j,4],1] <- left[pairs[j,3],pairs[j,4],1] + 
+            left[pairs[j,3],pairs[j,4],1] <- left[pairs[j,3],pairs[j,4],1] +
               (childMeans[2] - childMeans[1])
-            left[pairs[j,3],pairs[j,4],2] <- left[pairs[j,3],pairs[j,4],2] + 
+            left[pairs[j,3],pairs[j,4],2] <- left[pairs[j,3],pairs[j,4],2] +
               (childMeans[2] - childMeans[1]) * (childMeans[2] - childMeans[1])
           } else {
             left[pairs[j,3],pairs[j,4],1] <- childMeans[2] - childMeans[1]
@@ -195,21 +201,21 @@ RFepistasis <- function(mappingData,
           left[pairs[j,3],pairs[j,4],3] <- stored + 1
         }
       }
-      
+
       ## right side: (same stuff)
       pairs <- cbind(tS$nr, matrix(mHash[tree[tS$nr,4]], ncol = 2, byrow = F))
       pairs = pairs[apply(pairs,1,function(x) !any(is.na(x))),,drop = F] # exclude pairs where one of the markers is not in interestingMarkers
       if(nrow(pairs) > 0){
         for(j in 1:nrow(pairs)){
           stored <- right[pairs[j,3],pairs[j,4],3]
-          childMeans <- tree[tree[pairs[j,2],1:2],5] 
+          childMeans <- tree[tree[pairs[j,2],1:2],5]
           if(any(childMeans == 0)){
             next
           }
           if(stored >= 1){
-            right[pairs[j,3],pairs[j,4],1] <- right[pairs[j,3],pairs[j,4],1] + 
+            right[pairs[j,3],pairs[j,4],1] <- right[pairs[j,3],pairs[j,4],1] +
               (childMeans[2] - childMeans[1])
-            right[pairs[j,3],pairs[j,4],2] <- right[pairs[j,3],pairs[j,4],2] + 
+            right[pairs[j,3],pairs[j,4],2] <- right[pairs[j,3],pairs[j,4],2] +
               (childMeans[2] - childMeans[1]) * (childMeans[2] - childMeans[1])
           } else{
             right[pairs[j,3],pairs[j,4],1] <- (childMeans[2] - childMeans[1])
@@ -218,16 +224,16 @@ RFepistasis <- function(mappingData,
           right[pairs[j,3],pairs[j,4],3] <- stored+1
         }
       }
-      
+
     }
-    # get indices of marker pairs which have occured more than minTest times in the tree 
+    # get indices of marker pairs which have occured more than minTest times in the tree
     toTest <- which((left[,,3] >= minTest) | (right[,,3] >= minTest), arr.ind = T)
     temp = matrix(interestingMarkers[toTest],ncol = 2)
     # toTest = toTest[!is.na(rowHash[temp]),]
-    
+
     nTrialsLeft <- rowSums(left[,,3]) # this is needed for the binom test
     nTrialsRight <- rowSums(right[,,3]) # for each marker, how many splits were there on the left/right side in total
-    
+
     if(nrow(toTest) < 1){
       warning("no tests possible for this phenotype")
       return(NULL)
@@ -237,28 +243,28 @@ RFepistasis <- function(mappingData,
         if (abs(cors[row[1], row[2]]) >= Rcutoff) { # exclude markers in LD
           return(c(1, 0, 1, 0, 0, 1))
         }
-        
+
         # paired frequency test:
         freqmat <- c(counts[row[1],row[2],1],
-                     counts[row[1],row[2],2], 
+                     counts[row[1],row[2],2],
                      counts[row[2],row[1],2],
                      0)
         freqmat[4] <- ntree - sum(freqmat)
         dim(freqmat) <- c(2, 2)
         freq_res <- fisher.test(freqmat, alternative = "greater")$p.value
-        
+
         # prepare the counts for sel. asymmetry:
         nleft <- left[row[1],row[2],3]
         nright <- right[row[1],row[2],3]
-        
+
         # binomial test:
-        ntrialsL <- nTrialsLeft[row[1]] 
+        ntrialsL <- nTrialsLeft[row[1]]
         ntrialsR <- nTrialsRight[row[1]]
-        
+
         if(ntrialsL == 0 | ntrialsR == 0){
           return(c(NA, NA, NA, NA, NA, freq_res))
         }
-        
+
         # t-test:
         if((nright >= minTest) & (nleft >= minTest)){ # we only want to compute the ttest if we have at least 5 slopes on the right and left side.
           n1 = left[row[1],row[2],3]
@@ -271,31 +277,31 @@ RFepistasis <- function(mappingData,
           t  = sqrt(n1 * n2 / (n1 + n2)) * ((m1 - m2) / se)
           df <- n1 + n2 - 2
           tt_res = c(2 * pt(-abs(t), df = df), m1 - m2)
-        } else 
+        } else
           tt_res <- c(NA,NA)
-        
-        chi_res <- tryCatch(unlist(prop.test(x = c(nleft,nright), 
-                                             n = c(ntrialsL,ntrialsR), 
-                                             correct = F, 
-                                             alternative = "two.sided")[3:4], 
+
+        chi_res <- tryCatch(unlist(prop.test(x = c(nleft,nright),
+                                             n = c(ntrialsL,ntrialsR),
+                                             correct = F,
+                                             alternative = "two.sided")[3:4],
                                    use.names = FALSE),
                             warning=function(w) c(NA, NA, NA))
-        
+
         return(c(tt_res, chi_res, freq_res))
       }))
     }
-    
+
     # put all results in one table:
     toTest <- toTest[as.logical(rowSums(is.finite(toTest[,3:8]))),] # remove rows where no tests were performed
     toTest[,1] = interestingMarkers[toTest[,1]]
     toTest[,2] = interestingMarkers[toTest[,2]]
-    
+
     pairMat <- cbind(pairMat, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA)
     colnames(pairMat) <- c("markerA", "markerB",
-                           "p_splitA_AbeforeB", "slope_diff_AbeforeB", 
-                           "p_splitA_BbeforeA", "slope_diff_BbeforeA", 
-                           "p_selA_AbeforeB", "prop_BleftOfA", "prop_BrightOfA", 
-                           "p_selA_BbeforeA", "prop_AleftOfB", "prop_ArightOfB", 
+                           "p_splitA_AbeforeB", "slope_diff_AbeforeB",
+                           "p_splitA_BbeforeA", "slope_diff_BbeforeA",
+                           "p_selA_AbeforeB", "prop_BleftOfA", "prop_BrightOfA",
+                           "p_selA_BbeforeA", "prop_AleftOfB", "prop_ArightOfB",
                            "p_pairedSF_AbeforeB","p_pairedSF_BbeforeA")
     for(i in seq_len(nrow(toTest))){
       mA = toTest[i,1]
@@ -336,19 +342,19 @@ RFepistasis <- function(mappingData,
 }
 
 #' @title Reformat RF tree structure
-#' 
+#'
 #' @description
 #' Function that reformats the structure of a RF tree for use in RFepistasis.
 #'
 #' @param treeMat Matrix representing the structure of a tree of a forest.
-#'  Each row represents one node. The first two columns are the indices of 
-#'  the rows of the left and right child nodes, respectively. 
-#'  The third column indicates whether it is a terminal node 
-#'  or not (-3 means not terminal, -1 terminal, and 0 not used). 
-#'  The fourth column is the index in the genotype of the marker 
-#'  that was used for the split at this node. The last column is 
+#'  Each row represents one node. The first two columns are the indices of
+#'  the rows of the left and right child nodes, respectively.
+#'  The third column indicates whether it is a terminal node
+#'  or not (-3 means not terminal, -1 terminal, and 0 not used).
+#'  The fourth column is the index in the genotype of the marker
+#'  that was used for the split at this node. The last column is
 #'  the mean out-of-bag (oob) trait value for this node.
-#' 
+#'
 #' @return List of length 2. $nl: matrix with two columns containing
 #'  indices of predictors. Predictors in the second column were used
 #'  somewhere in the tree on the left side of the respective predictor
@@ -372,9 +378,9 @@ treeStructure <- function(treeMat){
     }
     if(logic[2]){
       R[[node]] <- c(as.integer(dirChildren[2]), L[[dirChildren[2]]], R[[dirChildren[2]]])
-    } 
+    }
   }
-  
+
   ## transform above lists into matrices with valid marker combinations, first column mother, second column dauther node
   nl <- c(unlist(sapply(names(L), FUN = function(x){
     rep(as.numeric(x), length(L[[x]]))
@@ -390,6 +396,6 @@ treeStructure <- function(treeMat){
     nr = matrix(data = NA, nrow = 0, ncol = 2)
   else
     dim(nr) <- c(length(nr)/2, 2)
-  
+
   return(list(nl = nl, nr = nr))
 }

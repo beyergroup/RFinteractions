@@ -81,16 +81,16 @@
 #' @examples
 simData = function(nObs,
                    nPredictors,
+                   nMarginals,
                    predType = NA,
+                   outcome = NA,
+                   intType = NA,
                    recombprob=c(0,0,0,0,0.01,0.3), # used for haploid
                    minMAF=0.3, # used for diploid and mixed
                    means=0,
                    SDs = 1, # used for continuous predictors
                    propBinary = 0.5, # used for mixed
-                   outcome = NA,
-                   intType = NA,
                    betaInt = c(1,1,1),
-                   nMarginals,
                    betaMarginals = rep(1,nMarginals),
                    noiseSD = 1){
   # add some argument checks here.
