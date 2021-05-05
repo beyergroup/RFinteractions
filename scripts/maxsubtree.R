@@ -1,7 +1,35 @@
-## ToDo scores werden später über alle Bäume aufsummieret, wenn einer aber nicht vorkommt ist der score desw niedriger nicht weil er wichtiger ist
-## Kommt er nicht vor, weil unwichtig oder weil nicht gesampled für den tree ??
+## ToDo scores werden später über alle Bäume aufsummieret, wenn einer aber nicht vorkommt ist der score desw niedriger und nicht weil er wichtiger ist.
+## Kommt er nicht vor, weil unwichtig oder weil nicht gesampled für den tree ?? Alle variablen werden gleich gespamplt <- daher ist der effekt egal?
+## 
 
+
+
+#' @title Normalized minimal depths extracted from maximal subtrees  
+#'
+#' @description
+#' The function calculates the normalized minimal depths within all possible maximal subtrees from a random forest object (\code{rf}).
+#' Here, rows represent the variables from which the maximal subtrees were extracted and the columns are showing the variables we are looking at within the subtrees. 
+#' The diagonal entries are the normalized minimal depths of the variables within the whole tree. 
+#' The resulting matrix is the sum of all min. depth matrices calculated for each tree within the forest. 
+#' The min. depth values are normalized with the size of according the tree/ subtree.
+#' In addition, the marginal effects of a variable (diagonal entry of the matrix) was subtracted from all minimal depths values of the variable for all subtrees. 
+#' #' 
+#' 
+#' 
+#' @rf Random forest object generated with the rf function from RandomForestExtended with keep.forest set to TRUE 
+#' @return A dataframe with minimal depth values for each subtree-variable pair(rows = subtree and cols = variable)
+#'
+#' @examples
 maxsubtree_minDepth <- function(rf){
+  RFE = require(RandomForestExtended)
+  if(!RFE){
+    stop("maxsubtree_minDepth depends on the package RandomForestExtended.
+           It can be accessed at http://cellnet-sb.cecad.uni-koeln.de/resources/RandomForestExtended.")
+  }
+  if(any(!c("call","type","predicted","mse","rsq","oob.times", "importance", "ntree", "mtry", "importanceSD", "localImportance", "proximity", "coefs", 
+            "forest","y", "test", "inbag")%in%names(rf))){
+    stop("Random Forest object has to be generated with the rf function from RandomForestExtended with keep.forest set to TRUE.")
+  }
   ntree = rf$ntree
   marker = names(rf$forest$xlevels)
 
@@ -123,8 +151,19 @@ maxsubtree_minDepth <- function(rf){
   
     
 
-
-
+#' @title Size of a subtree 
+#'
+#' @description
+#' Calculates the size of a subtree (number of nodes,including the terminal nodes). 
+#' The subtree is generated based on the input node number \code{subtree_root} which is going to be the root node of the generated subtree.
+#' The number \code{tree_num} indicates the exact tree we are interested in among all trees of the random forest object. 
+#' 
+#' 
+#' @subtree_root Node number of the full tree which should be the root of the subtree of interest 
+#' @tree_num Number of the full tree of interest within the given random forest object 
+#' @return Numeric size of a subtree
+#'
+#' @examples
 # Calculates subtree size 
 subtree_size = function(subtree_root, tree_num){
   tree = getTree(rf, k=tree_num, labelVar = T)
