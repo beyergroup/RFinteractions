@@ -1,6 +1,29 @@
-## ToDo scores werden später über alle Bäume aufsummieret, wenn einer aber nicht vorkommt ist der score desw niedriger und nicht weil er wichtiger ist.
-## Kommt er nicht vor, weil unwichtig oder weil nicht gesampled für den tree ?? Alle variablen werden gleich gespamplt <- daher ist der effekt egal?
+## ToDo: ## 
+## Final scores are the sum of all scores calculated for each tree. 
+## A tree-wise score of zero occurs, if the variable is responsible for the first split at the root (indicates high importance) OR if there is a split but not within a subtree
+## OR if there is no split with this variably it the whole tree. No splitting with this variable can be because of its unimportance or because it is just not sampled for the tree (mtry).
+## Now how to decide whether a score is low because of importance or because it is so unimportant and therefore hardly ever appears in a tree. 
+## Maybe normalize by the number a variable actually appears in trees? Or include something like a penalty score (maxtreesize +1 ?) for variables not in the tree but in mtry.
+## Same penalty for variables not in the subtree but in the whole tree??
 ## 
+## Normalize with treesize including terminal nodes or not?
+## 
+## How to compare the values? In general for the min depth in one tree -> the lower the min. depth the more important 
+## Same variables split often close to each other (possible interaction) -> low min. depth of the variable within the subtree of the other variable in many trees
+## The sum of these for all trees: 
+## Often split close together -> addition of many close to zero values 
+## Rarely split together -> addition of many zeros (here, the penalty would be good) or high values if the split is far down in the subtree 
+## Subtraction of the diagonal entries will show, in how far the effect size could be due to the marginal effect of the variable 
+## 
+## 
+##
+## Compare row wise -> which variable has the largest effect within a subtree; then compare effect sizes
+## Compare col wise -> within which subtree do we see the largest effect of variable x
+## Look how far a values differs from zero?
+## 
+## 
+
+
 
 
 
@@ -20,7 +43,7 @@
 #' @return A dataframe with minimal depth values for each subtree-variable pair(rows = subtree and cols = variable)
 #'
 #' @examples
-maxsubtree_minDepth <- function(rf){
+maxsubtree_minDepth <- function(rf, markerInds = NULL){
   RFE = require(RandomForestExtended)
   if(!RFE){
     stop("maxsubtree_minDepth depends on the package RandomForestExtended.
@@ -31,14 +54,19 @@ maxsubtree_minDepth <- function(rf){
     stop("Random Forest object has to be generated with the rf function from RandomForestExtended with keep.forest set to TRUE.")
   }
   ntree = rf$ntree
-  marker = names(rf$forest$xlevels)
+  
+  if(!is.null(markerInds)){
+    marker = names(rf$forest$xlevels)[unique(markerInds)]
+  } else {
+    marker = names(rf$forest$xlevels)
+  }
 
   # Iterate through all trees
   matrix_minDepth <- lapply(1:ntree, function(t){
     m = matrix(NA, nrow = length(marker), ncol = length(marker), 
                dimnames = list(marker, marker)) # pxp matrix where p is the numbers of predictors 
     
-    sizeTree = treesize(rf, terminal =  F)[t] #TODO: normalize with treesize including terminal nodes or not?
+    sizeTree = treesize(rf, terminal =  F)[t] 
     tree = getTree(rf, k=t, labelVar = T)
     
     
@@ -134,17 +162,17 @@ maxsubtree_minDepth <- function(rf){
       m[i,names(entry)] = entry
     }
     
-    # Subtract marginal effect of the marker from the maxsubtree min. depth values
-    for(col in 1:ncol(m)){
-      marg_effect = m[col, col]
-      m[-col, col] = m[-col, col] - marg_effect
-    }
-    
-    
     return(m)
   })
 
   matrix_minDepth = Reduce("+", matrix_minDepth) # Sum of all min. depth matrices of all rf trees 
+  
+  # Subtract marginal effect of the marker from the maxsubtree min. depth values
+  for(col in 1:ncol(matrix_minDepth)){
+    marg_effect = matrix_minDepth[col, col]
+    matrix_minDepth[-col, col] = matrix_minDepth[-col, col] - marg_effect
+  }
+  
   return(as.data.frame(matrix_minDepth))
 }
 
