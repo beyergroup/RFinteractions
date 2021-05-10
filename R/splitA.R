@@ -8,9 +8,8 @@ splitA = function(rf){
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
   # prepare matrix to store values in
-  lSum = sparseMatrix(i = NULL, j = NULL, dims = c(nPred, nPred))# sum of left slopes
-  colnames(lSum) = preds
-  rownames(lSum) = preds
+  lSum = sparseMatrix(i = NULL, j = NULL,x=0, dims = c(nPred, nPred),
+                      dimnames = list(preds, preds))
   lSqu = lSum # sum of squares of left slopes
   lCt = lSum # count of left slopes
   rSum = lSum # sum of right slopes
