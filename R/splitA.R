@@ -2,7 +2,7 @@
 # load("data/testRF.RData")
 
 
-splitA = function(rf){
+splitA = function(rf,  return = c("t", "p")){
   require(Matrix)
   require(randomForest)
   nPred = nrow(rf$importance)
@@ -15,14 +15,6 @@ splitA = function(rf){
   rSum = lSum # sum of right slopes
   rSqu = lSum # sum of squares of right slopes
   rCt = lSum # count of right slopes
-
-  #organize the forest-matrices into an array
-  # forestArray <- array(0,dim = c(dim(rf$forest$nodestatus),5))
-  # forestArray[,,1] <- rf$forest$leftDaughter # rows: node, cols: tree
-  # forestArray[,,2] <- rf$forest$rightDaughter # rows: node, cols: tree
-  # forestArray[,,3] <- rf$forest$nodestatus # whether it is a terminal node or not (-3 means not terminal, -1 terminal, and 0 not used)
-  # forestArray[,,4] <- rf$forest$bestvar # index of the alleles that were used for the split at each node (and in each tree)
-  # forestArray[,,5] <- rf$forest$oobpred
 
   for(i in 1:rf$ntree){
     # extract tree information from forest
@@ -106,8 +98,13 @@ splitA = function(rf){
   v2 = (rSqu[toTest] / n2) - (m2 * m2)
   se = sqrt((((n1 - 1) * v1) + ((n2 - 1) * v2)) / (n1 + n2 - 2))
   t  = sqrt(n1 * n2 / (n1 + n2)) * ((m1 - m2) / se)
-  df <- n1 + n2 - 2
-  tt_res = c(2 * pt(-abs(t), df = df))
-  out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = tt_res) # use t instead of tt_res?
+
+  if(return == "t"){
+    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = t)
+  } else{
+    df <- n1 + n2 - 2
+    tt_res = c(2 * pt(-abs(t), df = df))
+    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = tt_res)
+  }
   return(out)
 }

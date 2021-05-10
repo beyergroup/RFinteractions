@@ -1,3 +1,6 @@
+# this is a deprecated function.
+# it is taken from previous versions of RFepistasis, here
+# for history/documentation reasons only.
 RFepistasis <- function(mappingData,
                         markerInds1 = NULL, markerInds2 = NULL, pairMat = NULL,
                         mtry = NULL, ntree = 30000, npermut = 100,

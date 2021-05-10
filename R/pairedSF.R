@@ -1,4 +1,4 @@
-pairedSF = function(rf, yates = T){
+pairedSF = function(rf, yates = T, return = c("X", "p")){
   require(Matrix)
   require(randomForest)
   nPred = nrow(rf$importance)
