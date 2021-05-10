@@ -1,6 +1,5 @@
 # load("data/testRF2.RData")
 # load("data/testRF.RData")
-yates = T
 selA = function(rf, yates = T, return = c("X", "p")){
   require(Matrix)
   require(randomForest)

@@ -1,7 +1,5 @@
 # load("data/testRF2.RData")
 # load("data/testRF.RData")
-
-
 splitA = function(rf,  return = c("t", "p")){
   require(Matrix)
   require(randomForest)
