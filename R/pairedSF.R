@@ -1,6 +1,4 @@
-# load("data/testRF2.RData")
-# load("data/testRF.RData")
-pairedSF = function(rf, pairMat){
+pairedSF = function(rf, yates = T){
   require(Matrix)
   require(randomForest)
   nPred = nrow(rf$importance)
@@ -31,6 +29,16 @@ pairedSF = function(rf, pairMat){
   n_j = n-nj
   O = cbind(nij, ni_j, n_ij, n_i_j) # observed values
   E = cbind(ni*nj,ni*n_j,n_i*nj, n_i*n_j)/n # expected values
-  X = rowSums(((O-E)^2)/E)
-  return(X)
+  Y <- if (yates) { 0.5 } else { 0}
+  D = abs(O-E)
+  temp = cbind(Y, D)
+  Y = apply(temp,1,min)
+  X = rowSums(((D-Y)^2)/E)
+  if(return == "X"){
+    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = X)
+  } else{
+    PVAL <- pchisq(X, 1, lower.tail = FALSE)
+    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = PVAL)
+  }
+  return(out)
 }

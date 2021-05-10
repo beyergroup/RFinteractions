@@ -1,7 +1,7 @@
 # load("data/testRF2.RData")
 # load("data/testRF.RData")
-
-selA = function(rf){
+yates = T
+selA = function(rf, yates = T, return = c("X", "p")){
   require(Matrix)
   require(randomForest)
   nPred = nrow(rf$importance)
@@ -36,7 +36,8 @@ selA = function(rf){
     names(L) <- rownames(subTree)
     R <- L
     nodes <- rev(rownames(subTree))
-    for(node in nodes){ # go through nodes and store all non-terminal left/right children in L/R
+    # go through nodes and store all non-terminal left/right children in L/R
+    for(node in nodes){
       dirChildren <- as.character.default(subTree[node,1:2])
       logic <- (dirChildren %in% nodes) # does it have non-terminal left or right children?
       if(logic[1]){
@@ -50,6 +51,7 @@ selA = function(rf){
                        R[[dirChildren[2]]])
       }
     }
+
     ## transform above lists into matrices with valid marker combinations,
     ##  first column mother, second column (direct or indirect) daughter node
     nl <- c(unlist(sapply(names(L), FUN = function(x){
@@ -75,40 +77,30 @@ selA = function(rf){
     lCt[nlVars] = lCt[nlVars] + 1
     rCt[nrVars] = rCt[nrVars] + 1
   }
-  # for each marker, how many splits were there on the left/right side in total
-  nl <- rowSums(lCt)
-  nr <- rowSums(rCt)
 
+  # which marker pairs to Test
   toTest = which(lCt + rCt >= 2, arr.ind = T)
+  # we mustn't do the following:
+  # toTest = toTest[toTest[,2]>toTest[,1],]
 
-  pl = lCt/nl
-  pr = rCt/nr
-  # pooled Xi-squared
-  p = (nl*pl+nr*pr)/(nl+nr)
-  sigma = sqrt(p*(1-p)*(1/nl + 1/nr))
-  # unpooled
-  sigma = sqrt(pl*(1-pl)/nl + pr*(1-pr)/nr)
-
-  z=(pl-pr)/sigma
-
-
-
-   # prepare the counts for sel. asymmetry:
-  nleft <- left[row[1],row[2],3]
-  nright <- right[row[1],row[2],3]
-
-  # binomial test:
-  ntrialsL <- nTrialsLeft[row[1]]
-  ntrialsR <- nTrialsRight[row[1]]
-
-  if(ntrialsL == 0 | ntrialsR == 0){
-    return(c(NA, NA, NA, NA, NA, freq_res))
+  nTrialsL = rowSums(lCt)[toTest[,1]]
+  nTrialsR = rowSums(rCt)[toTest[,1]]
+  nl = lCt[toTest]
+  nr = rCt[toTest]
+  Y <- if (yates) { 0.5 } else { 0}
+  delta = abs(nl/nTrialsL - nr/nTrialsR)
+  Y <- pmin(Y, delta / (1/nTrialsL + 1/nTrialsR))
+  p = (nl+nr)/(nTrialsL + nTrialsR)
+  n_l = nTrialsL - nl
+  n_r = nTrialsR - nr
+  O = cbind(nl, nr, n_l, n_r)
+  E = cbind(p*nTrialsL, p*nTrialsR, (1-p) * nTrialsL, (1-p) * nTrialsR)
+  X <- rowSums((abs(O - E) - Y)^2/E)
+  if(return == "X"){
+    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = X)
+  } else{
+    PVAL <- pchisq(X, 1, lower.tail = FALSE)
+    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = PVAL)
   }
-  chi_res <- tryCatch(unlist(prop.test(x = c(nleft,nright),
-                                       n = c(ntrialsL,ntrialsR),
-                                       correct = F,
-                                       alternative = "two.sided")[3:4],
-                              use.names = FALSE),
-                       warning=function(w) c(NA, NA, NA))
-
+  return(out)
 }

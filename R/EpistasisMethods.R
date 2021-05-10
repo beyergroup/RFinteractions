@@ -1,9 +1,3 @@
-pairedSF = function(rf, pairMat){
-  pk = require(RandomForestExtended)
-  stopifnot("package RandomForestExtended is not installed but is required." = pk)
-
-}
-
 RFepistasis <- function(mappingData,
                         markerInds1 = NULL, markerInds2 = NULL, pairMat = NULL,
                         mtry = NULL, ntree = 30000, npermut = 100,
