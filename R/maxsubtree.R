@@ -1,12 +1,11 @@
-## ToDo: ## 
+##  
 ## Final scores are the sum of all scores calculated for each tree. 
 ## A tree-wise score of zero occurs, if the variable is responsible for the first split at the root (indicates high importance) OR if there is a split but not within a subtree
 ## OR if there is no split with this variably it the whole tree. No splitting with this variable can be because of its unimportance or because it is just not sampled for the tree (mtry).
 ## Now how to decide whether a score is low because of importance or because it is so unimportant and therefore hardly ever appears in a tree. 
-## Maybe normalize by the number a variable actually appears in trees? Or include something like a penalty score (maxtreesize +1 ?) for variables not in the tree but in mtry.
+## Maybe include something like a penalty score (maxtreesize +1 ?) for variables not in the tree but in mtry.
 ## Same penalty for variables not in the subtree but in the whole tree??
 ## 
-## Normalize with treesize including terminal nodes or not?
 ## 
 ## How to compare the values? In general for the min depth in one tree -> the lower the min. depth the more important 
 ## Same variables split often close to each other (possible interaction) -> low min. depth of the variable within the subtree of the other variable in many trees
@@ -49,7 +48,7 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
     stop("maxsubtree_minDepth depends on the package RandomForestExtended.
            It can be accessed at http://cellnet-sb.cecad.uni-koeln.de/resources/RandomForestExtended.")
   }
-  if(any(!c("call","type","predicted","mse","rsq","oob.times", "importance", "ntree", "mtry", "importanceSD", "localImportance", "proximity", "coefs", 
+  if(any(!c("call","type","predicted","oob.times", "importance", "ntree", "mtry", "importanceSD", "localImportance", "proximity", 
             "forest","y", "test", "inbag")%in%names(rf))){
     stop("Random Forest object has to be generated with the rf function from RandomForestExtended with keep.forest set to TRUE.")
   }
@@ -60,13 +59,14 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
   } else {
     marker = names(rf$forest$xlevels)
   }
+  
 
   # Iterate through all trees
   matrix_minDepth <- lapply(1:ntree, function(t){
     m = matrix(NA, nrow = length(marker), ncol = length(marker), 
                dimnames = list(marker, marker)) # pxp matrix where p is the numbers of predictors 
     
-    sizeTree = treesize(rf, terminal =  F)[t] 
+    sizeTree = treesize(rf, terminal =  T)[t] 
     tree = getTree(rf, k=t, labelVar = T)
     
     
@@ -116,7 +116,7 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
       subtreeRoot = suppressWarnings(as.numeric(rownames(subtree))) 
       
       if(!is.na(subtreeRoot)){
-        sizeSubtree = subtree_size(subtreeRoot, tree_num = t) # See function below
+        sizeSubtree = subtree_size(subtreeRoot, tree_num = t) # See function below | determines subtree size w/o terminal nodes
 
         # Calculate minimal depth for each variable within the subtree
         minDepth_perSubtree <- sapply(marker[!marker == subtreeVar], function(currentVar){
@@ -200,18 +200,20 @@ subtree_size = function(subtree_root, tree_num){
   size2=0
   ld = tree[subtree_root,1]
   
-  if(ld == 0){
-    size1=0  # if there is no further daughter node -> size does not increase
-  } else {
+  if(ld != 0){
     size1 = subtree_size(ld, tree_num) # if there is a daughter node, calculate its size by checking if it has further daughter nodes 
+    counter = 1 # add +1 to size if node is non-terminal 
+  } else if (ld == 0){
+    counter = 0 # do not increase size if node is terminal (= no split)
   }
   
   rd = tree[subtree_root,2]
   
-  if(rd == 0){
-    size2=0
-  } else {
+  if(rd != 0){
     size2 = subtree_size(rd, tree_num)
+    counter = 1
+  } else if (rd == 0){
+    counter = 0
   }
-  return(size1+size2+1) # add node sizes of daughters + 1 for the parent node 
+  return(size1+size2+counter) # add node sizes of daughters + 1 for the parent node 
 }
