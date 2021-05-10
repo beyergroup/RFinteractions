@@ -8,11 +8,8 @@ slopeScore = function(rf){
   require(randomForest)
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
-  l = sparseMatrix(i = NULL, j = NULL, dims = c(nPred, nPred))
-  ## the (i,j) pairs can be repeated, in which case the x's are summed
-  # l2=   matrix(0,nrow=nrow(rf$importance), ncol=nrow(rf$importance)) # empty matrix is much, much bigger
-  colnames(l) = preds
-  rownames(l) = preds
+  l =  sparseMatrix(i = NULL, j = NULL,x=0, dims = c(nPred, nPred),
+                    dimnames = list(preds, preds))
   r = l
   # matrices to count the number of collected slopes
   ctL = l

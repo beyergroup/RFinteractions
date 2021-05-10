@@ -7,9 +7,8 @@ selA = function(rf){
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
   # prepare matrix to store values in
-  lCt = sparseMatrix(i = NULL, j = NULL, dims = c(nPred, nPred))# sum of left slopes
-  colnames(lCt) = preds
-  rownames(lCt) = preds
+  lCt =  sparseMatrix(i = NULL, j = NULL,x=0, dims = c(nPred, nPred),
+                      dimnames = list(preds, preds))
   rCt = lCt # count of right slopes
 
   for(i in 1:rf$ntree){

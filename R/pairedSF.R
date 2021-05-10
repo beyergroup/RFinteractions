@@ -5,32 +5,32 @@ pairedSF = function(rf, pairMat){
   require(randomForest)
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
-  
-  
+
   # prepare matrix to store values in
-  ct =  sparseMatrix(i = NULL, j = NULL,x=0, dims = c(nPred, nPred),
-                     dimnames = list(preds, preds))
- 
+  ct = sparseMatrix(i = NULL, j = NULL,x=0, dims = c(nPred, nPred),
+                    dimnames = list(preds, preds))
+  # fill the matrix with counts
   for(i in 1:rf$ntree){
     vars = preds[unique(rf$forest$bestvar[,i])]
-    ct[vars,vars] = ct[vars,vars]+ 1
-    # ct[-vars,vars,2] = ct[-markers,markers,2] + 1
+    ct[vars,vars] = ct[vars,vars] + 1
   }
-  
-  # increase the counter for the marker pairs that occured together
-  # counts[markers,markers,1] = counts[markers,markers,1] + 1
-  # # increase the counter for the cases where only one of the markers was used (not used in row)
-  # counts[-markers,markers,2] = counts[-markers,markers,2] + 1
-  
-  
-  # diag(ct) = 0
+  # only test predictor pairs that were together at least once
   toTest = which(ct > 1, arr.ind = T)
-  i = 1
-  j = 3
-  nij = ct[i,j]
-  ni = ct[i,i]-nij
-  nj = ct[j,j]-nij
-  nr = rf$ntree - ni - nj - nij
-  mat <- matrix(c(nij, ni, nj, nr), nrow = 2)
-  chisq.test(mat)$statistic
+  toTest = toTest[toTest[,2]>toTest[,1],]
+
+
+  # "_" stands for "not"
+  n = rf$ntree
+  ni = diag(ct)[toTest[,1]]
+  nj = diag(ct)[toTest[,2]]
+  nij = ct[toTest]
+  ni_j = ni - nij
+  n_ij = nj - nij
+  n_i_j = n - ni - nj + nij
+  n_i = n-ni
+  n_j = n-nj
+  O = cbind(nij, ni_j, n_ij, n_i_j) # observed values
+  E = cbind(ni*nj,ni*n_j,n_i*nj, n_i*n_j)/n # expected values
+  X = rowSums(((O-E)^2)/E)
+  return(X)
 }
