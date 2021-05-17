@@ -1,31 +1,3 @@
-##  
-## Final scores are the sum of all scores calculated for each tree. 
-## A tree-wise score of zero occurs, if the variable is responsible for the first split at the root (indicates high importance) OR if there is a split but not within a subtree
-## OR if there is no split with this variably it the whole tree. No splitting with this variable can be because of its unimportance or because it is just not sampled for the tree (mtry).
-## Now how to decide whether a score is low because of importance or because it is so unimportant and therefore hardly ever appears in a tree. 
-## Maybe include something like a penalty score (maxtreesize +1 ?) for variables not in the tree but in mtry.
-## Same penalty for variables not in the subtree but in the whole tree??
-## 
-## 
-## How to compare the values? In general for the min depth in one tree -> the lower the min. depth the more important 
-## Same variables split often close to each other (possible interaction) -> low min. depth of the variable within the subtree of the other variable in many trees
-## The sum of these for all trees: 
-## Often split close together -> addition of many close to zero values 
-## Rarely split together -> addition of many zeros (here, the penalty would be good) or high values if the split is far down in the subtree 
-## Subtraction of the diagonal entries will show, in how far the effect size could be due to the marginal effect of the variable 
-## 
-## 
-##
-## Compare row wise -> which variable has the largest effect within a subtree; then compare effect sizes
-## Compare col wise -> within which subtree do we see the largest effect of variable x
-## Look how far a values differs from zero?
-## 
-## 
-
-
-
-
-
 #' @title Normalized minimal depths extracted from maximal subtrees  
 #'
 #' @description
@@ -34,24 +6,25 @@
 #' The diagonal entries are the normalized minimal depths of the variables within the whole tree. 
 #' The resulting matrix is the sum of all min. depth matrices calculated for each tree within the forest. 
 #' The min. depth values are normalized with the size of according the tree/ subtree.
-#' In addition, the marginal effects of a variable (diagonal entry of the matrix) was subtracted from all minimal depths values of the variable for all subtrees. 
-#' #' 
+#' In addition, the marginal effects of a variable (diagonal entry of the matrix) were subtracted from all minimal depths values of the variable for all subtrees. 
+#'  
 #' 
 #' 
-#' @rf Random forest object generated with the rf function from RandomForestExtended with keep.forest set to TRUE 
-#' @return A dataframe with minimal depth values for each subtree-variable pair(rows = subtree and cols = variable)
+#' @rf Random forest object with keep.forest set to TRUE 
+#' @markerInds Marker indices of interest. All possible combinations will be explored.If NULL, all markers will be selected.   
+#' @return Matrix with minimal depth values for each subtree-variable pair (rows = subtree and cols = variable)
 #'
 #' @examples
 maxsubtree_minDepth <- function(rf, markerInds = NULL){
-  RFE = require(RandomForestExtended)
+  RFE = require(randomForest, Matrix)
   if(!RFE){
-    stop("maxsubtree_minDepth depends on the package RandomForestExtended.
-           It can be accessed at http://cellnet-sb.cecad.uni-koeln.de/resources/RandomForestExtended.")
+    stop("maxsubtree_minDepth depends on the package RandomForest.")
   }
-  if(any(!c("call","type","predicted","oob.times", "importance", "ntree", "mtry", "importanceSD", "localImportance", "proximity", 
-            "forest","y", "test", "inbag")%in%names(rf))){
-    stop("Random Forest object has to be generated with the rf function from RandomForestExtended with keep.forest set to TRUE.")
+  if(class(rf) != "randomForest"){
+      stop("Input must be a rf object.")
   }
+  
+  
   ntree = rf$ntree
   
   if(!is.null(markerInds)){
@@ -60,15 +33,15 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
     marker = names(rf$forest$xlevels)
   }
   
+  m = matrix(0, nrow = length(marker), ncol = length(marker), 
+               dimnames = list(marker, marker)) # pxp matrix where p is the numbers of predictors 
 
   # Iterate through all trees
-  matrix_minDepth <- lapply(1:ntree, function(t){
-    m = matrix(NA, nrow = length(marker), ncol = length(marker), 
-               dimnames = list(marker, marker)) # pxp matrix where p is the numbers of predictors 
+  for(t in 1:ntree){
     
-    sizeTree = treesize(rf, terminal =  T)[t] 
     tree = getTree(rf, k=t, labelVar = T)
-    
+    sizeTree = nrow(tree[tree$status == 1,])
+
     
     ## Marginal effects = matrix diagonal ##
     marker_minDepth_marg <- sapply(marker, function(currentVar){ # Suppresses warnings bc NAs are produced 
@@ -81,7 +54,6 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
       if(is.na(VarSplitNode)){ # no split with marker x in this tree
         minDepth = 0 # No min. depth if not in the tree 
 
-        
       } else if (VarSplitNode == 1 && !is.na(VarSplitNode)){ # first split at the root
         minDepth = 0 # Min. depth is zero
 
@@ -104,7 +76,8 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
     })
     
     norm_minDepth_marg = marker_minDepth_marg / sizeTree # Normalize all depth by tree size 
-    diag(m) = norm_minDepth_marg #Add normalized values to matrix diagonal
+    
+    diag(m) = diag(m) + norm_minDepth_marg
   
    
     
@@ -112,11 +85,11 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
     ## Min. depth within a subtree for all variables ##
     subtree_minDepth <- lapply(marker, function(subtreeVar){
       
-      subtree = tree[which(tree$`split var` == subtreeVar),][1,] # Takes the maximal subtree
+      subtree = tree[which(tree$`split var` == subtreeVar),][1,] # Takes the root of the maximal subtree
       subtreeRoot = suppressWarnings(as.numeric(rownames(subtree))) 
       
       if(!is.na(subtreeRoot)){
-        sizeSubtree = subtree_size(subtreeRoot, tree_num = t) # See function below | determines subtree size w/o terminal nodes
+        sizeSubtree = subtree_size(subtreeRoot, tree) # See function below | determines subtree size
 
         # Calculate minimal depth for each variable within the subtree
         minDepth_perSubtree <- sapply(marker[!marker == subtreeVar], function(currentVar){
@@ -138,10 +111,11 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
           
           if(VarSplitNode < subtreeRoot | is.na(VarSplitNode)){ # If we couldnt reach the subtree root -> var not in subtree OR variable is not in the tree
             minDepth = 0
+            #### Here we could add the penalty equal to the max subtreesize +1 ####
+            #minDepth = sizeSubtree + 1
           }
           
           return(minDepth)
-        # min depth im subtee  
         })
         
         # Add values to matrix 
@@ -159,21 +133,15 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
     # Add subtree min. depth to matrix 
     for (i in 1:length(subtree_minDepth)) {
       entry = subtree_minDepth[[i]]
-      m[i,names(entry)] = entry
+      m[i,names(entry)] = m[i,names(entry)] + entry
     }
-    
-    return(m)
-  })
-
-  matrix_minDepth = Reduce("+", matrix_minDepth) # Sum of all min. depth matrices of all rf trees 
-  
-  # Subtract marginal effect of the marker from the maxsubtree min. depth values
-  for(col in 1:ncol(matrix_minDepth)){
-    marg_effect = matrix_minDepth[col, col]
-    matrix_minDepth[-col, col] = matrix_minDepth[-col, col] - marg_effect
   }
+
+  marg_effect = diag(m) # sum of all marginal effects
+  m = m - marg_effect # remove marginal effects 
+  diag(m) = marg_effect
   
-  return(as.data.frame(matrix_minDepth))
+  return(m)
 }
 
   
@@ -193,27 +161,28 @@ maxsubtree_minDepth <- function(rf, markerInds = NULL){
 #'
 #' @examples
 # Calculates subtree size 
-subtree_size = function(subtree_root, tree_num){
-  tree = getTree(rf, k=tree_num, labelVar = T)
-  
+subtree_size = function(subtree_root, maintree){
+
   size1=0
   size2=0
-  ld = tree[subtree_root,1]
+  
+  ld = maintree[subtree_root,1]
   
   if(ld != 0){
-    size1 = subtree_size(ld, tree_num) # if there is a daughter node, calculate its size by checking if it has further daughter nodes 
+    size1 = subtree_size(ld, maintree) # if there is a daughter node, calculate its size by checking if it has further daughter nodes 
     counter = 1 # add +1 to size if node is non-terminal 
   } else if (ld == 0){
     counter = 0 # do not increase size if node is terminal (= no split)
   }
   
-  rd = tree[subtree_root,2]
+  rd = maintree[subtree_root,2]
   
   if(rd != 0){
-    size2 = subtree_size(rd, tree_num)
+    size2 = subtree_size(rd, maintree)
     counter = 1
   } else if (rd == 0){
     counter = 0
   }
+  
   return(size1+size2+counter) # add node sizes of daughters + 1 for the parent node 
 }
