@@ -1,3 +1,4 @@
+# this is a deprecated script. It is here for documentation reasons only.
 ######################################################################
 ### compile information needed for EPI() from an rfdev randomForest
 ### object

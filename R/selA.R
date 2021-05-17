@@ -1,8 +1,41 @@
-# load("data/testRF2.RData")
-# load("data/testRF.RData")
-selA = function(rf, yates = T, return = c("X", "p")){
-  require(Matrix)
-  require(randomForest)
+#' @title Compute selection asymmetry
+#'
+#' @description
+#' A function to selection asymmetry between predictors in a
+#' random Forest. This function counts, for all possible predictor pairs, how
+#' often on predictor was used on the left or the right side of a previous
+#' split on the second predictor. The imbalance in these counts is quantified
+#' with a Chi-squared statistic. Note that the p-value is not an
+#' indicator of significance for the interaction, but should be treated as
+#' an uncalibrated score, since the p-values will become smaller the bigger
+#' the forest is.
+#'
+#' @param rf A randomForest object, created with the randomForest package.
+#' @param yates a logical, indicating whether yates' continuity correction
+#' should be applied to the Chi-squared test.
+#' @param out Either "X" or "p", indicating whether Chi (out="X") or the
+#' p-value (out="p") should be returned. Note that the p-value is not an
+#' indicator of significance for the interaction, but should be treated as
+#' an uncalibrated score.
+#' @return A sparse Matrix with nPredictors*nPredictors dimensions, containing
+#' either Chi-squared of p-values for each predictor pair.
+#' @export
+#'
+#' @examples
+#' load("data/testRF2.RData")
+#' load("data/testRF.RData")
+#' res = selA(rf)
+#' res2 = selA(rf2)
+selA = function(rf, yates = T, out = c("X", "p")){
+  Mp = require(Matrix)
+  RFp = require(randomForest)
+  out = match.arg(out, choices = c("X", "p"))
+  stopifnot("The randomForest package is required" = RFp,
+            "The Matrix package is required" = Mp,
+            "rf needs to be a randomForest created with randomForest package" = is(rf, "randomForest"),
+            "No forest stored in rf. Use keep.forest=T when creating the forest."= is.null(rfobj$forest),
+            "yates needs to be a logical of length 1" = is.logical(yates) & length(yates) == 1)
+
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
   # prepare matrix to store values in
@@ -95,11 +128,11 @@ selA = function(rf, yates = T, return = c("X", "p")){
   O = cbind(nl, nr, n_l, n_r)
   E = cbind(p*nTrialsL, p*nTrialsR, (1-p) * nTrialsL, (1-p) * nTrialsR)
   X <- rowSums((abs(O - E) - Y)^2/E)
-  if(return == "X"){
-    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = X)
+  if(out == "X"){
+    resetGeneric() = sparseMatrix(i = toTest[,1], j = toTest[,2], x = X)
   } else{
     PVAL <- pchisq(X, 1, lower.tail = FALSE)
-    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = PVAL)
+    resetClass() = sparseMatrix(i = toTest[,1], j = toTest[,2], x = PVAL)
   }
-  return(out)
+  return(res)
 }

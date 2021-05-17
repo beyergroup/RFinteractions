@@ -1,11 +1,38 @@
-# load("data/testRF2.RData")
-# load("data/testRF.RData")
-
-# function to extract Jake's score from a rf. Improved to also include
-# scores for predictors that are not directly consecutie in the trees.
+#' @title Compute slope asymmetry score
+#'
+#' @description
+#' A function to compute aggregated slope asymmetry scores between predictors in a
+#' random Forest.  For any pair of predictors (e.g. A and B), this function
+#' computes the outcome variable difference (called slope) for a split on B
+#' on the left side of a previous split on A, and a split on B on the right
+#' side of a previous split on A. These slopes are aggregated (summed) over all
+#' trees in the forest. The difference between left an right slopes is then
+#' returned, after correcting for marginal effects of each predictor.
+#' This function represents an improved implementation of the
+#' approach presented in the PhD Thesis of Jake Michaelson. The major
+#' modification is also including predictor pairs that are not directly
+#' consecutive in the tree, but also predictor pairs where there were splits
+#' on other predictors in between.
+#' @param rf A randomForest object, created with the randomForest package.
+#' @return A sparse Matrix with nPredictors*nPredictors dimensions, containing
+#' slope asymmetry scores for predictor pairs. Rows represent parent split (A),
+#' columns represent the child split (B). Therefore, each predictor pair is
+#' represented twice, once with A as the parent, and once with B as the parent.
+#' @export
+#'
+#' @examples
+#' load("data/testRF2.RData")
+#' load("data/testRF.RData")
+#' res = selA(rf)
+#' res2 = selA(rf2)
 slopeScore = function(rf){
-  require(Matrix)
-  require(randomForest)
+  Mp = require(Matrix)
+  RFp = require(randomForest)
+  stopifnot("The randomForest package is required" = RFp,
+            "The Matrix package is required" = Mp,
+            "rf needs to be a randomForest created with randomForest package" = is(rf, "randomForest"),
+            "No forest stored in rf. Use keep.forest=T when creating the forest."= is.null(rfobj$forest))
+
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
   l =  sparseMatrix(i = NULL, j = NULL,x=0, dims = c(nPred, nPred),

@@ -1,8 +1,40 @@
-# load("data/testRF2.RData")
-# load("data/testRF.RData")
-splitA = function(rf,  return = c("t", "p")){
-  require(Matrix)
-  require(randomForest)
+#' @title Compute split asymmetry
+#'
+#' @description
+#' A function to compute split asymmetry between predictors in a
+#' random Forest.  For any pair of predictors (e.g. A and B), this function
+#' computes the outcome variable difference (called slope) for a split on B
+#' on the left side of a previous split on A, and a split on B on the right
+#' side of a previous split on A. These slopes are collected over all
+#' trees in the forest. The difference between left an right slopes is then
+#' quantified with a Students' t-statistic (i.e. t-test).
+#' Note that the p-value is not an indicator of significance for the
+#' interaction, but should be treated asaan uncalibrated score, since the
+#' p-values will be smaller the bigger the forest is.
+#'
+#' @param rf A randomForest object, created with the randomForest package.
+#' @param out Either "t" or "p", indicating whether t  (out="t") or the
+#' p-value (out="p") should be returned. Note that the p-value is not an
+#' indicator of significance for the interaction, but should be treated as
+#' an uncalibrated score.
+#' @return A sparse Matrix with nPredictors*nPredictors dimensions, containing
+#' either t of p-values for each predictor pair.
+#' @export
+#'
+#' @examples
+#' load("data/testRF2.RData")
+#' load("data/testRF.RData")
+#' res = splitA(rf)
+#' res2 = splitA(rf2)
+splitA = function(rf,  out = c("t", "p")){
+  Mp = require(Matrix)
+  RFp = require(randomForest)
+  out = match.arg(out, choices = c("t", "p"))
+  stopifnot("The randomForest package is required" = RFp,
+            "The Matrix package is required" = Mp,
+            "rf needs to be a randomForest created with randomForest package" = is(rf, "randomForest"),
+            "No forest stored in rf. Use keep.forest=T when creating the forest."= is.null(rfobj$forest))
+
   nPred = nrow(rf$importance)
   preds = rownames(rf$importance)
   # prepare matrix to store values in
@@ -87,6 +119,8 @@ splitA = function(rf,  return = c("t", "p")){
     rSqu[nrVars] <- rSqu[nrVars] + nrSlopes*nrSlopes
     rCt[nrVars] = rCt[nrVars] + 1
   }
+
+
   toTest = which(lCt > 1 & rCt > 1, arr.ind = T)
   n1 = lCt[toTest]
   m1 = lSum[toTest] / n1
@@ -97,12 +131,12 @@ splitA = function(rf,  return = c("t", "p")){
   se = sqrt((((n1 - 1) * v1) + ((n2 - 1) * v2)) / (n1 + n2 - 2))
   t  = sqrt(n1 * n2 / (n1 + n2)) * ((m1 - m2) / se)
 
-  if(return == "t"){
-    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = t)
+  if(out == "t"){
+    res = sparseMatrix(i = toTest[,1], j = toTest[,2], x = t)
   } else{
     df <- n1 + n2 - 2
     tt_res = c(2 * pt(-abs(t), df = df))
-    out = sparseMatrix(i = toTest[,1], j = toTest[,2], x = tt_res)
+    res = sparseMatrix(i = toTest[,1], j = toTest[,2], x = tt_res)
   }
-  return(out)
+  return(res)
 }
